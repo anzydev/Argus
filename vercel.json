@@ -1,0 +1,51 @@
+{
+    "builds": [
+        {
+            "src": "api/server.py",
+            "use": "@vercel/python"
+        }
+    ],
+    "routes": [
+        {
+            "src": "/health",
+            "dest": "api/server.py"
+        },
+        {
+            "src": "/validate_key",
+            "dest": "api/server.py"
+        },
+        {
+            "src": "/compare",
+            "dest": "api/server.py"
+        },
+        {
+            "src": "/compare_zip",
+            "dest": "api/server.py"
+        },
+        {
+            "src": "/detect_ai_single",
+            "dest": "api/server.py"
+        },
+        {
+            "src": "/detect_ai_batch",
+            "dest": "api/server.py"
+        },
+        {
+            "src": "/random_code",
+            "dest": "api/server.py"
+        },
+        {
+            "src": "/(.*\\.css)",
+            "dest": "/$1"
+        },
+        {
+            "src": "/(.*\\.js)",
+            "dest": "/$1"
+        },
+        {
+            "src": "/(.*\\.html)",
+            "dest": "/$1"
+        }
+    ],
+    "outputDirectory": "."
+}

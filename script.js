@@ -1,722 +1,708 @@
-const SAMPLE_A = `"""
-data/script_a.py — Clean Two-Sum solution using a hash map.
-"""
+/**
+ * Argus — Frontend Script
+ *
+ * Connects to backend API endpoints:
+ *   POST /compare       — Dual file comparison
+ *   POST /compare_zip   — ZIP batch comparison
+ *   POST /detect_ai_single — Single file AI detection
+ *   POST /detect_ai_batch  — Batch AI detection
+ *   GET  /random_code   — Load sample code
+ *   GET  /health        — API health check
+ */
 
-def two_sum(numbers: list, target: int) -> list:
-    """Find indices of two numbers that add up to target."""
-    seen = {}
-    for index, value in enumerate(numbers):
-        complement = target - value
-        if complement in seen:
-            return [seen[complement], index]
-        seen[value] = index
-    return []
+(function () {
+  'use strict';
 
-if __name__ == "__main__":
-    nums = [2, 7, 11, 15]
-    t = 9
-    result = two_sum(nums, t)
-    print(f"Output: {result}")`;
+  const API_BASE = ''; // Relative paths work on both localhost and Vercel
+  const MIN_LINES = 10;
 
-const SAMPLE_B = `"""
-data/script_b.py — Obfuscated Two-Sum solution.
-All variables renamed, for-loop → while-loop, noise injected.
-"""
-import random
-
-def xQ7(z: list, k: int) -> list:
-    print("starting process...")
-    q = {}
-    p = 0
-    print(f"DEBUG: list length is {len(z)}")
-    while p < len(z):
-        v = z[p]
-        print("iteration:", p, "value:", v)
-        r = k - v
-        if r in q:
-            print("match found!")
-            return [q[r], p]
-        q[v] = p
-        p += 1
-    print("no result found")
-    return []
-
-if __name__ == "__main__":
-    a = [2, 7, 11, 15]
-    b = 9
-    print(random.random())
-    c = xQ7(a, b)
-    print(c)`;
-
-// ── API base URL ──────────────────────────────────────────────────────
-const API = 'http://localhost:8000';
-const MIN_LINES = 10;
-
-function countLines(code) {
-  return code.trim().split('\n').filter(l => l.trim().length > 0).length;
-}
-
-// ── Load samples ──────────────────────────────────────────────────────
-async function loadSample(which, btn) {
-  const originalText = btn.textContent;
-  btn.textContent = 'Fetching...';
-  btn.disabled = true;
-
-  try {
-    const lang = document.getElementById('lang-select').value;
-    const res = await fetch(`${API}/random_code?language=${lang}`);
-    if (!res.ok) throw new Error('Failed to fetch from GitHub via backend API');
-    const data = await res.json();
-
-    if (which === 'a') {
-      document.getElementById('code-a').value = data.code;
-    } else {
-      document.getElementById('code-b').value = data.code;
-    }
-  } catch (err) {
-    showError('GitHub fetch failed, falling back to local samples.');
-    if (which === 'a') {
-      document.getElementById('code-a').value = SAMPLE_A;
-    } else {
-      document.getElementById('code-b').value = SAMPLE_B;
-    }
-  } finally {
-    updateCount();
-    btn.textContent = originalText;
-    btn.disabled = false;
+  function countLines(code) {
+    return code.trim().split('\n').filter(l => l.trim().length > 0).length;
   }
-}
 
-// ── Character counts ──────────────────────────────────────────────────
-function updateCount() {
-  const a = document.getElementById('code-a') ? document.getElementById('code-a').value : '';
-  const b = document.getElementById('code-b') ? document.getElementById('code-b').value : '';
-  const ai = document.getElementById('code-ai') ? document.getElementById('code-ai').value : '';
+  // ── Gate Screen Logic ──
+  let validatedApiKey = '';
 
-  if (document.getElementById('count-a')) document.getElementById('count-a').textContent = a.length.toLocaleString() + ' chars';
-  if (document.getElementById('count-b')) document.getElementById('count-b').textContent = b.length.toLocaleString() + ' chars';
-  if (document.getElementById('count-ai')) document.getElementById('count-ai').textContent = ai.length.toLocaleString() + ' chars';
-}
+  (function initGate() {
+    const overlay = document.getElementById('gate-overlay');
+    const gateInput = document.getElementById('gate-api-key');
+    const gateBtn = document.getElementById('gate-btn');
+    const gateError = document.getElementById('gate-error');
+    const gateToggle = document.getElementById('gate-toggle-vis');
+    const gateEye = document.getElementById('gate-eye');
+    const particlesContainer = document.getElementById('gate-particles');
 
-if (document.getElementById('code-a')) document.getElementById('code-a').addEventListener('input', updateCount);
-if (document.getElementById('code-b')) document.getElementById('code-b').addEventListener('input', updateCount);
-if (document.getElementById('code-ai')) document.getElementById('code-ai').addEventListener('input', updateCount);
+    // Create floating particles
+    for (let i = 0; i < 20; i++) {
+      const p = document.createElement('div');
+      p.className = 'gate-particle';
+      p.style.left = Math.random() * 100 + '%';
+      p.style.width = (3 + Math.random() * 4) + 'px';
+      p.style.height = p.style.width;
+      p.style.animationDuration = (6 + Math.random() * 10) + 's';
+      p.style.animationDelay = (Math.random() * 8) + 's';
+      p.style.opacity = 0.2 + Math.random() * 0.4;
+      particlesContainer.appendChild(p);
+    }
 
-// ── N-gram slider ─────────────────────────────────────────────────────
-const ngramSlider = document.getElementById('ngram-size');
-const ngramDisplay = document.getElementById('ngram-display');
-ngramSlider.addEventListener('input', () => {
-  ngramDisplay.textContent = ngramSlider.value;
-});
+    // Toggle password visibility
+    gateToggle.addEventListener('click', () => {
+      const isPassword = gateInput.type === 'password';
+      gateInput.type = isPassword ? 'text' : 'password';
+      gateEye.textContent = isPassword ? '🙈' : '👁';
+    });
 
-// ── Gauge helpers ─────────────────────────────────────────────────────
-const CIRCUMFERENCE = 326.73;
-const gaugeFill = document.getElementById('gauge-fill');
-const gaugePct = document.getElementById('gauge-pct');
+    function showGateError(msg) {
+      gateError.textContent = msg;
+      gateError.classList.add('visible');
+      gateInput.classList.add('shake');
+      gateInput.style.borderColor = '#ff6b6b';
+      setTimeout(() => gateInput.classList.remove('shake'), 500);
+    }
 
-function setGauge(fraction) {
-  const offset = CIRCUMFERENCE * (1 - fraction);
-  gaugeFill.style.strokeDashoffset = offset;
+    function clearGateError() {
+      gateError.classList.remove('visible');
+      gateInput.style.borderColor = '';
+    }
 
-  // Colour: green → amber → red
-  let colour;
-  if (fraction < 0.40) colour = '#10b981';
-  else if (fraction < 0.70) colour = '#f59e0b';
-  else colour = '#f43f5e';
-  gaugeFill.style.stroke = colour;
+    gateInput.addEventListener('input', clearGateError);
 
-  gaugePct.textContent = Math.round(fraction * 100) + '%';
-}
+    async function validateAndEnter() {
+      const key = gateInput.value.trim();
+      if (!key) { showGateError('Please enter your Groq API key.'); return; }
+      if (!key.startsWith('gsk_')) { showGateError('Invalid format — Groq keys start with "gsk_".'); return; }
+      if (key.length < 20) { showGateError('Key is too short. Please check your key.'); return; }
 
-function resetGauge() {
-  gaugeFill.style.strokeDashoffset = CIRCUMFERENCE;
-  gaugeFill.style.stroke = '#10b981';
-  gaugePct.textContent = '—';
-}
+      gateBtn.classList.add('loading');
+      gateBtn.disabled = true;
+      clearGateError();
 
-// ── Error display ─────────────────────────────────────────────────────
-function showError(msg) {
-  const el = document.getElementById('error-toast');
-  el.style.display = 'block';
-  el.textContent = '⚠️  ' + msg;
-  setTimeout(() => { el.style.display = 'none'; }, 8000);
-}
+      // Try server-side validation if backend is running; otherwise accept client-side
+      let serverReachable = false;
+      try {
+        const resp = await fetch(`${API_BASE}/validate_key`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_key: key }),
+        });
+        const data = await resp.json();
+        serverReachable = true;
 
-function hideError() {
-  document.getElementById('error-toast').style.display = 'none';
-}
+        if (!data.valid) {
+          let msg = data.message || 'Invalid API key.';
+          if (msg.includes("'message':")) {
+            const match = msg.match(/'message':\s*'([^']+)'/);
+            if (match) msg = match[1];
+          }
+          showGateError(msg);
+          gateBtn.classList.remove('loading');
+          gateBtn.disabled = false;
+          return;
+        }
+      } catch (err) {
+        // Backend not reachable — accept key on client-side format alone
+        serverReachable = false;
+      }
 
-function showSuccess(msg) {
-  const el = document.getElementById('success-toast');
-  el.style.display = 'block';
-  el.textContent = '✅  ' + msg;
-  setTimeout(() => { el.style.display = 'none'; }, 6000);
-}
+      // Key accepted — store and reveal app
+      validatedApiKey = key;
+      overlay.classList.add('success');
+      gateBtn.querySelector('.gate-btn-text').textContent = '✓ Key Saved';
 
-// ── Mode switcher ─────────────────────────────────────────────────────
-let currentMode = 'dual'; // 'dual' or 'zip'
+      const mainKeyInput = document.getElementById('api-key');
+      if (mainKeyInput) mainKeyInput.value = key;
 
-function switchMode(mode) {
-  currentMode = mode;
+      setTimeout(() => {
+        overlay.classList.add('unlocking');
+        setTimeout(() => overlay.classList.add('hidden'), 700);
+      }, 600);
 
-  const tabs = document.querySelectorAll('.mode-tab');
-  tabs.forEach(t => t.classList.remove('active'));
-  document.querySelector(`.mode-tab[onclick="switchMode('${mode}')"]`).classList.add('active');
+      gateBtn.classList.remove('loading');
+      gateBtn.disabled = false;
+    }
 
-  document.getElementById('dual-mode-section').style.display = mode === 'dual' ? 'grid' : 'none';
-  document.getElementById('zip-mode-section').style.display = mode === 'zip' ? 'block' : 'none';
-  document.getElementById('ai-single-mode-section').style.display = mode === 'ai-single' ? 'grid' : 'none';
-  document.getElementById('ai-mode-section').style.display = mode === 'ai' ? 'block' : 'none';
+    gateBtn.addEventListener('click', validateAndEnter);
+    gateInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') validateAndEnter(); });
+    setTimeout(() => gateInput.focus(), 800);
+  })();
 
-  document.getElementById('results-section').classList.remove('visible');
-}
+  // ── DOM Elements ──
+  const modeTabs = document.querySelectorAll('.mode-tab');
+  const dualSection = document.getElementById('dual-mode-section');
+  const aiSingleSection = document.getElementById('ai-single-mode-section');
+  const zipSection = document.getElementById('zip-mode-section');
+  const aiSection = document.getElementById('ai-mode-section');
+  const sections = { dual: dualSection, zip: zipSection, 'ai-single': aiSingleSection, ai: aiSection };
 
-// ── File Drop & Upload Logic ──────────────────────────────────────────
-const setupDropZone = (zoneId, inputId, btnId, isAi) => {
-  const zone = document.getElementById(zoneId);
-  const input = document.getElementById(inputId);
-  const btn = document.getElementById(btnId);
+  const codeA = document.getElementById('code-a');
+  const codeB = document.getElementById('code-b');
+  const codeAi = document.getElementById('code-ai');
+  const countA = document.getElementById('count-a');
+  const countB = document.getElementById('count-b');
+  const countAi = document.getElementById('count-ai');
+  const langSelect = document.getElementById('lang-select');
+  const ngramSlider = document.getElementById('ngram-size');
+  const ngramDisplay = document.getElementById('ngram-display');
+  const apiKeyInput = document.getElementById('api-key');
 
-  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
-  zone.addEventListener('dragleave', e => { e.preventDefault(); zone.classList.remove('dragover'); });
-  zone.addEventListener('drop', e => {
-    e.preventDefault();
-    zone.classList.remove('dragover');
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0], isAi);
+  const scanBtn = document.getElementById('scan-btn');
+  const scanAiSingleBtn = document.getElementById('scan-ai-single-btn');
+  const scanZipBtn = document.getElementById('scan-zip-btn');
+  const scanAiBtn = document.getElementById('scan-ai-btn');
+
+  const gaugeFill = document.getElementById('gauge-fill');
+  const gaugePct = document.getElementById('gauge-pct');
+
+  const errorToast = document.getElementById('error-toast');
+  const successToast = document.getElementById('success-toast');
+
+  const dualResults = document.getElementById('dual-results-grid');
+  const batchResults = document.getElementById('batch-results-grid');
+  const aiSingleResults = document.getElementById('ai-single-results-grid');
+  const aiResults = document.getElementById('ai-results-grid');
+
+  const drawerOverlay = document.getElementById('drawer-overlay');
+  const drawer = document.getElementById('drawer');
+  const drawerClose = document.getElementById('drawer-close');
+  const drawerBody = document.getElementById('drawer-body');
+
+  const CIRCUMFERENCE = 2 * Math.PI * 48; // gauge circle radius=48
+
+  let currentMode = 'dual';
+  let batchData = null;
+
+  // Helper to get active API key (gate key or manually-entered key)
+  function getActiveApiKey() {
+    const manualKey = apiKeyInput.value.trim();
+    return manualKey || validatedApiKey;
+  }
+
+  // ── Mode Switching ──
+  modeTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const mode = tab.dataset.mode;
+      switchMode(mode);
+    });
   });
 
-  input.addEventListener('change', e => {
-    if (e.target.files && e.target.files.length > 0) handleFile(e.target.files[0], isAi);
-  });
-};
-
-setupDropZone('drop-zone-zip', 'zip-file', 'scan-zip-btn', false);
-setupDropZone('drop-zone-ai', 'ai-zip-file', 'scan-ai-btn', true);
-
-let selectedZipFile = null;
-let selectedAiZipFile = null;
-
-function handleFile(file, isAi) {
-  hideError();
-  if (!file.name.endsWith('.zip')) {
-    showError('Please select a valid .zip file.');
-    if (isAi) selectedAiZipFile = null; else selectedZipFile = null;
-    updateUI(isAi);
-    return;
+  function switchMode(mode) {
+    currentMode = mode;
+    modeTabs.forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+    Object.entries(sections).forEach(([key, el]) => {
+      el.style.display = key === mode ? '' : 'none';
+    });
+    [dualResults, batchResults, aiSingleResults, aiResults].forEach(r => r.style.display = 'none');
   }
-  if (isAi) selectedAiZipFile = file; else selectedZipFile = file;
-  updateUI(isAi);
-}
 
-function updateUI(isAi) {
-  const zone = document.getElementById(isAi ? 'drop-zone-ai' : 'drop-zone-zip');
-  const btn = document.getElementById(isAi ? 'scan-ai-btn' : 'scan-zip-btn');
-  const file = isAi ? selectedAiZipFile : selectedZipFile;
+  // ── Character Counts ──
+  codeA.addEventListener('input', () => { countA.textContent = codeA.value.length + ' chars'; });
+  codeB.addEventListener('input', () => { countB.textContent = codeB.value.length + ' chars'; });
+  codeAi.addEventListener('input', () => { countAi.textContent = codeAi.value.length + ' chars'; });
 
-  if (file) {
-    zone.querySelector('h2').textContent = file.name;
-    zone.querySelector('p').textContent = `Ready to analyse ${(file.size / 1024).toFixed(1)} KB`;
-    zone.querySelector('.zip-icon').textContent = '✅';
-    btn.disabled = false;
-    zone.style.borderColor = 'var(--safe)';
-  } else {
-    zone.querySelector('h2').textContent = isAi ? 'Upload ZIP for AI Detection' : 'Upload ZIP for Batch Analysis';
-    zone.querySelector('p').innerHTML = isAi ? `Drop a .zip file containing scripts to scan for LLM generation, or <span class="browse-link" onclick="document.getElementById('ai-zip-file').click()">browse your files</span>.` : `Drop a .zip file containing multiple Python scripts, or <span class="browse-link" onclick="document.getElementById('zip-file').click()">browse your files</span>.`;
-    zone.querySelector('.zip-icon').textContent = isAi ? '🤖' : '📦';
+  // ── N-gram Slider ──
+  ngramSlider.addEventListener('input', () => { ngramDisplay.textContent = ngramSlider.value; });
+
+  // ── Load Sample ──
+  document.getElementById('load-sample-a').addEventListener('click', (e) => { e.stopPropagation(); loadSample('a'); });
+  document.getElementById('load-sample-b').addEventListener('click', (e) => { e.stopPropagation(); loadSample('b'); });
+
+  async function loadSample(target) {
+    const btn = document.getElementById('load-sample-' + target);
+    const origText = btn.textContent;
+    btn.textContent = 'Loading…';
     btn.disabled = true;
-    zone.style.borderColor = 'var(--border)';
-  }
-}
 
-// ── Results display ───────────────────────────────────────────────────
-function showResults(data, ngramSize) {
-  const section = document.getElementById('results-section');
-  document.getElementById('dual-results-grid').style.display = 'grid';
-  document.getElementById('batch-results-grid').style.display = 'none';
-  document.getElementById('ai-results-grid').style.display = 'none';
-
-  const score = data.score;
-  const pct = (score * 100).toFixed(1) + '%';
-
-  setGauge(score);
-
-  // Verdict
-  let icon, colour;
-  const isLimitedSolution = (data.verdict || '').includes('Limited-Solution');
-
-  if (isLimitedSolution) {
-    icon = '📘';
-    colour = 'rgba(59,130,246,0.30)';
-  } else if (score >= 0.70) {
-    icon = '⚠️';
-    colour = 'rgba(244,63,94,0.35)';
-  } else if (score >= 0.40) {
-    icon = '🔍';
-    colour = 'rgba(245,158,11,0.35)';
-  } else {
-    icon = '✅';
-    colour = 'rgba(16,185,129,0.25)';
+    try {
+      const lang = langSelect.value;
+      const resp = await fetch(`${API_BASE}/random_code?language=${lang}`);
+      if (!resp.ok) throw new Error('Failed to fetch sample');
+      const data = await resp.json();
+      const textarea = target === 'a' ? codeA : codeB;
+      textarea.value = data.code || '';
+      textarea.dispatchEvent(new Event('input'));
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      btn.textContent = origText;
+      btn.disabled = false;
+    }
   }
 
-  const title = data.verdict || 'Analysis Complete';
+  // ── ZIP Upload ──
+  const zipFile = document.getElementById('zip-file');
+  const aiZipFile = document.getElementById('ai-zip-file');
+  const dropZoneZip = document.getElementById('drop-zone-zip');
+  const dropZoneAi = document.getElementById('drop-zone-ai');
 
-  document.getElementById('verdict-icon').textContent = icon;
-  document.getElementById('verdict-text').textContent = title;
-  document.getElementById('verdict-sub').textContent = `Jaccard Index: ${score.toFixed(6)}  ·  N-gram size: ${ngramSize}`;
-  document.getElementById('verdict-pct').textContent = pct;
-  document.getElementById('verdict-card').style.borderColor = colour.replace('0.35', '0.6').replace('0.25', '0.6');
-  document.getElementById('verdict-card').style.background = colour;
+  document.getElementById('browse-zip').addEventListener('click', (e) => { e.stopPropagation(); zipFile.click(); });
+  document.getElementById('browse-ai').addEventListener('click', (e) => { e.stopPropagation(); aiZipFile.click(); });
 
-  // Stat fields
-  document.getElementById('s-nodes-a').textContent = (data.details?.nodes_a_count ?? '—').toLocaleString();
-  document.getElementById('s-nodes-b').textContent = (data.details?.nodes_b_count ?? '—').toLocaleString();
-  document.getElementById('s-ngrams-a').textContent = (data.details?.ngrams_a_count ?? '—').toLocaleString();
-  document.getElementById('s-ngrams-b').textContent = (data.details?.ngrams_b_count ?? '—').toLocaleString();
-  document.getElementById('s-intersection').textContent = (data.details?.intersection ?? '—').toLocaleString();
-  document.getElementById('s-union').textContent = (data.details?.union ?? '—').toLocaleString();
-  document.getElementById('s-ngram-size').textContent = ngramSize;
-  document.getElementById('s-score').textContent = score.toFixed(6);
+  dropZoneZip.addEventListener('click', () => zipFile.click());
+  dropZoneAi.addEventListener('click', () => aiZipFile.click());
 
-  // AI Authorship Badges
-  const renderAiBadge = (elId, aiData) => {
-    const el = document.getElementById(elId);
-    if (!aiData || aiData.confidence === 0) {
-      el.textContent = "—";
-      el.title = aiData?.reason || "No API key provided / Check Failed";
-      el.className = "val";
+  [dropZoneZip, dropZoneAi].forEach(zone => {
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  });
+
+  dropZoneZip.addEventListener('drop', e => {
+    e.preventDefault(); dropZoneZip.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) { zipFile.files = e.dataTransfer.files; zipFile.dispatchEvent(new Event('change')); }
+  });
+
+  dropZoneAi.addEventListener('drop', e => {
+    e.preventDefault(); dropZoneAi.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) { aiZipFile.files = e.dataTransfer.files; aiZipFile.dispatchEvent(new Event('change')); }
+  });
+
+  zipFile.addEventListener('change', () => {
+    scanZipBtn.disabled = !zipFile.files.length;
+    if (zipFile.files.length) {
+      dropZoneZip.querySelector('.upload-title').textContent = zipFile.files[0].name;
+    }
+  });
+
+  aiZipFile.addEventListener('change', () => {
+    scanAiBtn.disabled = !aiZipFile.files.length;
+    if (aiZipFile.files.length) {
+      dropZoneAi.querySelector('.upload-title').textContent = aiZipFile.files[0].name;
+    }
+  });
+
+  // ── Toast System (pop animations) ──
+  let errorTimer = null;
+  let successTimer = null;
+
+  function showError(msg) {
+    clearTimeout(errorTimer);
+    errorToast.textContent = msg;
+    errorToast.classList.remove('pop-in', 'pop-out');
+    void errorToast.offsetWidth;
+    errorToast.classList.add('pop-in');
+
+    errorTimer = setTimeout(() => {
+      errorToast.classList.remove('pop-in');
+      errorToast.classList.add('pop-out');
+    }, 4000);
+  }
+
+  function showSuccess(msg) {
+    clearTimeout(successTimer);
+    successToast.textContent = msg;
+    successToast.classList.remove('pop-in', 'pop-out');
+    void successToast.offsetWidth;
+    successToast.classList.add('pop-in');
+
+    successTimer = setTimeout(() => {
+      successToast.classList.remove('pop-in');
+      successToast.classList.add('pop-out');
+    }, 3000);
+  }
+
+  // ── Gauge Update ──
+  function updateGauge(score) {
+    const pct = score * 100;
+    const offset = CIRCUMFERENCE * (1 - score);
+    gaugeFill.style.strokeDashoffset = offset;
+    gaugePct.textContent = pct.toFixed(1) + '%';
+
+    if (score >= 0.7) {
+      gaugeFill.style.stroke = 'var(--danger)';
+    } else if (score >= 0.4) {
+      gaugeFill.style.stroke = 'var(--warning)';
+    } else {
+      gaugeFill.style.stroke = 'var(--success)';
+    }
+  }
+
+  function resetGauge() {
+    gaugeFill.style.strokeDashoffset = CIRCUMFERENCE;
+    gaugePct.textContent = '—';
+    gaugeFill.style.stroke = 'var(--accent)';
+  }
+
+  // ── Button Loading State ──
+  function setBtnLoading(btn, loading) {
+    if (loading) {
+      btn._origHTML = btn.innerHTML;
+      btn.innerHTML = '<span class="btn-icon" style="animation: spin 0.8s linear infinite;">⏳</span><span>Analyzing…</span>';
+      btn.disabled = true;
+    } else {
+      btn.innerHTML = btn._origHTML;
+      btn.disabled = false;
+    }
+  }
+
+  // ── DUAL SCAN ──
+  scanBtn.addEventListener('click', runDualScan);
+
+  async function runDualScan() {
+    const c1 = codeA.value.trim();
+    const c2 = codeB.value.trim();
+    if (!c1 || !c2) { showError('Please paste code in both editors.'); return; }
+
+    const linesA = countLines(c1);
+    const linesB = countLines(c2);
+    if (linesA < MIN_LINES || linesB < MIN_LINES) {
+      const which = linesA < MIN_LINES ? `File A (${linesA} lines)` : `File B (${linesB} lines)`;
+      showError(`${which} is too short. Code must be at least ${MIN_LINES} non-empty lines for reliable analysis.`);
       return;
     }
 
+    setBtnLoading(scanBtn, true);
+    resetGauge();
+    dualResults.style.display = 'none';
+
+    try {
+      const payload = {
+        code1: c1,
+        code2: c2,
+        ngram_size: parseInt(ngramSlider.value),
+        language: langSelect.value,
+      };
+      const key = getActiveApiKey();
+      if (key) payload.api_key = key;
+
+      const resp = await fetch(`${API_BASE}/compare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json();
+        throw new Error(err.detail || 'Analysis failed');
+      }
+
+      const data = await resp.json();
+      renderDualResults(data);
+      showSuccess('Analysis complete');
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setBtnLoading(scanBtn, false);
+    }
+  }
+
+  function renderDualResults(data) {
+    const score = data.score;
+    updateGauge(score);
+
+    document.getElementById('verdict-text').textContent = data.verdict;
+    document.getElementById('verdict-pct').textContent = data.score_pct;
+    document.getElementById('verdict-sub').textContent = `Analysis of ${langSelect.value} code with N-gram size ${ngramSlider.value}`;
+
+    const icon = document.getElementById('verdict-icon');
+    const card = document.getElementById('verdict-card');
+    card.style.borderLeftWidth = '4px';
+    const isLimitedSolution = (data.verdict || '').includes('Limited-Solution');
+    if (isLimitedSolution) {
+      icon.textContent = '📘';
+      card.style.borderLeftColor = 'var(--accent)';
+    } else if (score >= 0.7) {
+      icon.textContent = '🚨';
+      card.style.borderLeftColor = 'var(--danger)';
+    } else if (score >= 0.4) {
+      icon.textContent = '⚠️';
+      card.style.borderLeftColor = 'var(--warning)';
+    } else {
+      icon.textContent = '✅';
+      card.style.borderLeftColor = 'var(--success)';
+    }
+
+    const d = data.details;
+    document.getElementById('s-nodes-a').textContent = d.nodes_a_count || '—';
+    document.getElementById('s-nodes-b').textContent = d.nodes_b_count || '—';
+    document.getElementById('s-ngrams-a').textContent = d.ngrams_a_count || '—';
+    document.getElementById('s-ngrams-b').textContent = d.ngrams_b_count || '—';
+    document.getElementById('s-intersection').textContent = d.intersection || '—';
+    document.getElementById('s-union').textContent = d.union || '—';
+    document.getElementById('s-ngram-size').textContent = ngramSlider.value;
+    document.getElementById('s-score').textContent = data.score_pct;
+
+    renderAiBadge('ai-badge-a', d.code1_ai);
+    renderAiBadge('ai-badge-b', d.code2_ai);
+
+    dualResults.style.display = 'grid';
+    dualResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function renderAiBadge(elementId, aiData) {
+    const el = document.getElementById(elementId);
+    if (!aiData || aiData.reason === 'No API key') {
+      el.textContent = 'N/A';
+      el.title = 'No API key provided';
+      return;
+    }
     if (aiData.is_ai) {
-      el.innerHTML = `<span class="badge danger">🤖 ${aiData.confidence}% AI Generated</span>`;
+      el.innerHTML = `<span style="color:var(--danger);font-weight:600;">AI (${aiData.confidence}%)</span>`;
+      el.title = aiData.reason || '';
     } else {
-      el.innerHTML = `<span class="badge safe">👤 ${aiData.confidence}% Likely Human</span>`;
-    }
-    el.title = aiData.reason || "";
-    el.className = "val"; // Reset any stray classes
-  };
-
-  renderAiBadge('ai-badge-a', data.details?.code1_ai);
-  renderAiBadge('ai-badge-b', data.details?.code2_ai);
-
-  section.classList.add('visible');
-}
-
-function showBatchResults(data, ngramSize) {
-  const section = document.getElementById('results-section');
-  document.getElementById('dual-results-grid').style.display = 'none';
-  document.getElementById('ai-results-grid').style.display = 'none';
-  document.getElementById('batch-results-grid').style.display = 'block';
-
-  const numComparisons = data.results.length;
-  window.batchFiles = data.files || {};
-
-  const suspiciousCount = data.results.filter(r => r.score >= 0.40).length;
-  const subtitle = document.getElementById('batch-subtitle');
-  if (suspiciousCount > 0) {
-    subtitle.innerHTML = `🚨 Found <strong>${suspiciousCount} suspicious matches</strong> out of ${numComparisons} pairs examined.`;
-  } else {
-    subtitle.innerHTML = `✅ No plagiarism detected across ${numComparisons} pairs.`;
-  }
-
-  const tbody = document.getElementById('batch-table-body');
-  tbody.innerHTML = '';
-
-  if (numComparisons === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--muted);">No comparisons could be made. Ensure the ZIP has at least 2 .py files.</td></tr>`;
-  }
-
-  data.results.forEach(res => {
-    let colourClass = 'safe';
-    if (res.verdict && (res.verdict.includes('Common') || res.verdict.includes('No Plagiarism'))) {
-      colourClass = 'muted';
-    } else if (res.score >= 0.70) {
-      colourClass = 'danger';
-    } else if (res.score >= 0.40) {
-      colourClass = 'warn';
-    }
-
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-          <td><span class="badge ${colourClass}">${res.score_pct}</span></td>
-          <td class="file-col">${res.file1}</td>
-          <td class="file-col">${res.file2}</td>
-          <td class="verdict-col ${colourClass}-text">${res.verdict}</td>
-          <td style="text-align: right;">
-            <button class="editor-load-btn" onclick="viewPair('${res.file1}', '${res.file2}', ${ngramSize})">View Side-by-Side</button>
-          </td>
-        `;
-    tbody.appendChild(tr);
-  });
-
-  section.classList.add('visible');
-
-  // Show success notification
-  if (numComparisons > 0) {
-    if (suspiciousCount > 0) {
-      showSuccess(`Scanned ${numComparisons} pairs. Found ${suspiciousCount} suspicious matches!`);
-    } else {
-      showSuccess(`Successfully scanned ${numComparisons} pairs. No plagiarism detected.`);
+      el.innerHTML = `<span style="color:var(--success);font-weight:600;">Human (${100 - (aiData.confidence || 0)}%)</span>`;
+      el.title = aiData.reason || '';
     }
   }
-}
 
-// ── Load dual view from batch row ──────────────────────────────────────
-function viewPair(f1, f2, n) {
-  if (!window.batchFiles || !window.batchFiles[f1] || !window.batchFiles[f2]) return;
+  // ── ZIP BATCH SCAN ──
+  scanZipBtn.addEventListener('click', runZipScan);
 
-  document.getElementById('code-a').value = window.batchFiles[f1];
-  document.getElementById('code-b').value = window.batchFiles[f2];
+  async function runZipScan() {
+    if (!zipFile.files.length) return;
+    setBtnLoading(scanZipBtn, true);
 
-  document.getElementById('label-a').textContent = f1;
-  document.getElementById('label-b').textContent = f2;
+    try {
+      const formData = new FormData();
+      formData.append('file', zipFile.files[0]);
+      formData.append('ngram_size', ngramSlider.value);
+      formData.append('language', langSelect.value);
+      const key = getActiveApiKey();
+      if (key) formData.append('api_key', key);
 
-  updateCount();
+      const resp = await fetch(`${API_BASE}/compare_zip`, { method: 'POST', body: formData });
+      if (!resp.ok) {
+        const err = await resp.json();
+        throw new Error(err.detail || 'Batch analysis failed');
+      }
 
-  currentMode = 'dual';
-  const tabs = document.querySelectorAll('.mode-tab');
-  tabs.forEach(t => t.classList.remove('active'));
-  document.querySelector(`.mode-tab[onclick="switchMode('dual')"]`).classList.add('active');
-
-  document.getElementById('dual-mode-section').style.display = 'grid';
-  document.getElementById('zip-mode-section').style.display = 'none';
-
-  ngramSlider.value = n;
-  ngramDisplay.textContent = n;
-
-  runScan();
-}
-
-// ── Main scan functions ────────────────────────────────────────────────
-async function runScan() {
-  if (currentMode === 'zip') return runZipScan();
-  if (currentMode === 'ai') return runAiBatchScan();
-  if (currentMode === 'ai-single') return runAiSingleScan();
-
-  const code1 = document.getElementById('code-a').value.trim();
-  const code2 = document.getElementById('code-b').value.trim();
-  const n = parseInt(ngramSlider.value);
-
-  hideError();
-
-  if (!code1 || !code2) {
-    showError('Please paste code into both editors before scanning.');
-    return;
+      const data = await resp.json();
+      batchData = data;
+      renderBatchResults(data);
+      showSuccess(`Batch analysis complete — ${data.results.length} pairs compared`);
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setBtnLoading(scanZipBtn, false);
+    }
   }
 
-  const linesA = countLines(code1);
-  const linesB = countLines(code2);
-  if (linesA < MIN_LINES || linesB < MIN_LINES) {
-    const which = linesA < MIN_LINES ? `File A (${linesA} lines)` : `File B (${linesB} lines)`;
-    showError(`${which} is too short. Code must be at least ${MIN_LINES} non-empty lines for reliable analysis.`);
-    return;
-  }
+  function renderBatchResults(data) {
+    const tbody = document.getElementById('batch-table-body');
+    tbody.innerHTML = '';
 
-  const btn = document.getElementById('scan-btn');
-  btn.disabled = true;
-  btn.classList.add('loading');
-  btn.querySelector('.btn-icon').textContent = '⏳';
-  btn.querySelector('.btn-label').textContent = 'SCANNING';
-  resetGauge();
+    const numFiles = Object.keys(data.files || {}).length;
+    document.getElementById('batch-subtitle').textContent =
+      `Pairwise comparisons across ${numFiles} files — ${data.results.length} pairs`;
 
-  try {
-    const lang = document.getElementById('lang-select').value;
-    const apiKey = document.getElementById('api-key').value.trim();
-    const payloadStr = { code1, code2, ngram_size: n, language: lang };
-    if (apiKey) payloadStr.api_key = apiKey;
-
-    const res = await fetch(`${API}/compare`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payloadStr),
+    data.results.forEach((r, idx) => {
+      const tr = document.createElement('tr');
+      const badgeClass = r.score >= 0.7 ? 'badge-high' : r.score >= 0.4 ? 'badge-moderate' : 'badge-low';
+      tr.innerHTML = `
+                <td><span class="similarity-badge ${badgeClass}">${r.score_pct}</span></td>
+                <td>${esc(r.file1)}</td>
+                <td>${esc(r.file2)}</td>
+                <td style="max-width:280px;font-size:0.8rem;">${esc(r.verdict)}</td>
+                <td style="text-align:right;">
+                    <button class="btn-detail" data-idx="${idx}">Details</button>
+                </td>
+            `;
+      tbody.appendChild(tr);
     });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: res.statusText }));
-      throw new Error(err.detail || `HTTP ${res.status}`);
-    }
-
-    const data = await res.json();
-    showResults(data, n);
-
-  } catch (e) {
-    if (e instanceof TypeError && e.message.includes('fetch')) {
-      showError('Cannot reach the Argus API. Make sure the server is running:\n  uvicorn api.server:app --reload --port 8000');
-    } else {
-      showError(e.message);
-    }
-  } finally {
-    btn.disabled = false;
-    btn.classList.remove('loading');
-    btn.querySelector('.btn-icon').textContent = '⚡';
-    btn.querySelector('.btn-label').textContent = 'SCAN';
-  }
-}
-
-async function runZipScan() {
-  if (!selectedZipFile) return;
-
-  const n = parseInt(ngramSlider.value);
-  hideError();
-
-  const btn = document.getElementById('scan-zip-btn');
-  btn.disabled = true;
-  btn.classList.add('loading');
-  btn.querySelector('.btn-icon').textContent = '⏳';
-  btn.querySelector('.btn-label').textContent = 'PROCESSING...';
-
-  const formData = new FormData();
-  formData.append('file', selectedZipFile);
-
-  const lang = document.getElementById('lang-select').value;
-  const apiKey = document.getElementById('api-key').value.trim();
-
-  let fetchUrl = `${API}/compare_zip?ngram_size=${n}&language=${lang}`;
-  if (apiKey) formData.append('api_key', apiKey);
-
-  try {
-    const res = await fetch(fetchUrl, {
-      method: 'POST',
-      body: formData,
+    tbody.querySelectorAll('.btn-detail').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.idx);
+        openDrawer(data.results[idx], data.files);
+      });
     });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: res.statusText }));
-      throw new Error(err.detail || `HTTP ${res.status}`);
+    batchResults.style.display = 'block';
+    batchResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ── AI SINGLE SCAN ──
+  scanAiSingleBtn.addEventListener('click', runAiSingleScan);
+
+  async function runAiSingleScan() {
+    const code = codeAi.value.trim();
+    if (!code) { showError('Please paste code to analyze.'); return; }
+
+    const lineCount = countLines(code);
+    if (lineCount < MIN_LINES) {
+      showError(`Code has only ${lineCount} non-empty lines. It must be at least ${MIN_LINES} lines long for reliable AI detection.`);
+      return;
     }
+    setBtnLoading(scanAiSingleBtn, true);
 
-    const data = await res.json();
-    showBatchResults(data, n);
+    try {
+      const payload = { code, language: langSelect.value };
+      const key = getActiveApiKey();
+      if (key) payload.api_key = key;
 
-  } catch (e) {
-    if (e instanceof TypeError && e.message.includes('fetch')) {
-      showError('Cannot reach the Argus API. Make sure the server is running:\n  uvicorn api.server:app --reload --port 8000');
+      const resp = await fetch(`${API_BASE}/detect_ai_single`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json();
+        throw new Error(err.detail || 'AI detection failed');
+      }
+
+      const data = await resp.json();
+      renderAiSingleResult(data);
+      showSuccess('AI detection complete');
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setBtnLoading(scanAiSingleBtn, false);
+    }
+  }
+
+  function renderAiSingleResult(data) {
+    const icon = document.getElementById('ai-single-icon');
+    const title = document.getElementById('ai-single-title');
+    const sub = document.getElementById('ai-single-sub');
+    const badge = document.getElementById('ai-single-badge');
+
+    if (data.is_ai) {
+      icon.textContent = '🤖';
+      title.textContent = 'AI-Generated Code Detected';
+      title.style.color = 'var(--danger)';
+      badge.innerHTML = `<span class="similarity-badge badge-high" style="font-size:1rem;padding:6px 20px;">Confidence: ${data.confidence}%</span>`;
     } else {
-      showError(e.message);
+      icon.textContent = '👤';
+      title.textContent = 'Human-Written Code';
+      title.style.color = 'var(--success)';
+      badge.innerHTML = `<span class="similarity-badge badge-low" style="font-size:1rem;padding:6px 20px;">Confidence: ${100 - (data.confidence || 0)}%</span>`;
     }
-  } finally {
-    btn.disabled = false;
-    btn.classList.remove('loading');
-    btn.querySelector('.btn-icon').textContent = '⚡';
-    btn.querySelector('.btn-label').textContent = 'SCAN ZIP BATCH';
-  }
-}
+    sub.textContent = data.reason || '';
 
-async function runAiSingleScan() {
-  const code = document.getElementById('code-ai').value.trim();
-  hideError();
-
-  if (!code) {
-    showError('Please paste code into the editor before scanning.');
-    return;
+    aiSingleResults.style.display = 'block';
+    aiSingleResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  const lineCount = countLines(code);
-  if (lineCount < MIN_LINES) {
-    showError(`Code has only ${lineCount} non-empty lines. It must be at least ${MIN_LINES} lines long for reliable AI detection.`);
-    return;
+  // ── AI BATCH SCAN ──
+  scanAiBtn.addEventListener('click', runAiBatchScan);
+
+  async function runAiBatchScan() {
+    if (!aiZipFile.files.length) return;
+    setBtnLoading(scanAiBtn, true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', aiZipFile.files[0]);
+      formData.append('language', langSelect.value);
+      const key = getActiveApiKey();
+      if (key) formData.append('api_key', key);
+
+      const resp = await fetch(`${API_BASE}/detect_ai_batch`, { method: 'POST', body: formData });
+      if (!resp.ok) {
+        const err = await resp.json();
+        throw new Error(err.detail || 'AI batch detection failed');
+      }
+
+      const data = await resp.json();
+      renderAiBatchResults(data);
+      showSuccess(`AI detection complete — ${data.results.length} files analyzed`);
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setBtnLoading(scanAiBtn, false);
+    }
   }
 
-  const btn = document.getElementById('scan-ai-single-btn');
-  btn.disabled = true;
-  btn.classList.add('loading');
-  btn.querySelector('.btn-icon').textContent = '⏳';
-  btn.querySelector('.btn-label').textContent = 'SCANNING...';
+  function renderAiBatchResults(data) {
+    const tbody = document.getElementById('ai-table-body');
+    tbody.innerHTML = '';
 
-  try {
-    const lang = document.getElementById('lang-select').value;
-    const apiKey = document.getElementById('api-key').value.trim();
-    const payloadStr = { code: code, language: lang };
-    if (apiKey) payloadStr.api_key = apiKey;
+    document.getElementById('ai-batch-subtitle').textContent =
+      `AI detection across ${data.results.length} files`;
 
-    const res = await fetch(`${API}/detect_ai_single`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payloadStr),
+    data.results.forEach(r => {
+      const tr = document.createElement('tr');
+      const badgeClass = r.is_ai ? 'badge-high' : 'badge-low';
+      const label = r.is_ai ? `AI ${r.confidence}%` : `Human ${100 - (r.confidence || 0)}%`;
+      tr.innerHTML = `
+                <td><span class="similarity-badge ${badgeClass}">${esc(label)}</span></td>
+                <td>${esc(r.file)}</td>
+                <td>${r.is_ai ? '🤖 AI Generated' : '👤 Human Written'}</td>
+                <td style="max-width:320px;font-size:0.8rem;">${esc(r.reason)}</td>
+            `;
+      tbody.appendChild(tr);
     });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: res.statusText }));
-      throw new Error(err.detail || `HTTP ${res.status}`);
+    aiResults.style.display = 'block';
+    aiResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ── Investigation Drawer ──
+  function openDrawer(result, files) {
+    let html = '';
+
+    html += `<div class="drawer-section">
+            <div class="drawer-section-title">Comparison</div>
+            <div class="drawer-pair">${esc(result.file1)}<span class="vs-text">vs</span>${esc(result.file2)}</div>
+        </div>`;
+
+    html += `<div class="drawer-section">
+            <div class="drawer-section-title">Structural Similarity</div>
+            <div class="drawer-big-pct">${result.score_pct}</div>
+            <div style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">${esc(result.verdict)}</div>
+        </div>`;
+
+    const d = result.details || {};
+    html += `<div class="drawer-section">
+            <div class="drawer-section-title">Technical Specs</div>
+            <div class="drawer-stat-row"><span>AST Nodes (A)</span><span class="val">${d.nodes_a_count || '—'}</span></div>
+            <div class="drawer-stat-row"><span>AST Nodes (B)</span><span class="val">${d.nodes_b_count || '—'}</span></div>
+            <div class="drawer-stat-row"><span>N-grams (A)</span><span class="val">${d.ngrams_a_count || '—'}</span></div>
+            <div class="drawer-stat-row"><span>N-grams (B)</span><span class="val">${d.ngrams_b_count || '—'}</span></div>
+            <div class="drawer-stat-row"><span>Shared N-grams</span><span class="val">${d.intersection || '—'}</span></div>
+            <div class="drawer-stat-row"><span>Union N-grams</span><span class="val">${d.union || '—'}</span></div>
+            <div class="drawer-stat-row"><span>Jaccard Score</span><span class="val">${result.score_pct}</span></div>
+        </div>`;
+
+    const reasoning = d.ai_reasoning || '';
+    if (reasoning) {
+      html += `<div class="drawer-section">
+                <div class="drawer-section-title">AI Forensic Analysis</div>
+                <div class="drawer-reasoning">${esc(reasoning)}</div>
+            </div>`;
     }
 
-    const data = await res.json();
-    showAiSingleResults(data);
-
-  } catch (e) {
-    if (e instanceof TypeError && e.message.includes('fetch')) {
-      showError('Cannot reach the Argus API. Make sure the server is running:\\n  uvicorn api.server:app --reload --port 8000');
-    } else {
-      showError(e.message);
-    }
-  } finally {
-    btn.disabled = false;
-    btn.classList.remove('loading');
-    btn.querySelector('.btn-icon').textContent = '⚡';
-    btn.querySelector('.btn-label').textContent = 'SCAN SNIPPET';
-  }
-}
-
-function showAiSingleResults(data) {
-  const section = document.getElementById('results-section');
-  document.getElementById('dual-results-grid').style.display = 'none';
-  document.getElementById('batch-results-grid').style.display = 'none';
-  document.getElementById('ai-results-grid').style.display = 'none';
-  document.getElementById('ai-single-results-grid').style.display = 'block';
-
-  const card = document.getElementById('ai-single-verdict-card');
-  const icon = document.getElementById('ai-single-icon');
-  const title = document.getElementById('ai-single-title');
-  const sub = document.getElementById('ai-single-sub');
-  const badge = document.getElementById('ai-single-badge');
-
-  if (!data || data.confidence === 0) {
-    icon.textContent = '❌';
-    title.textContent = 'Analysis Failed';
-    sub.textContent = data?.reason || "Check API Key or rate limits.";
-    badge.innerHTML = '';
-    card.style.borderColor = 'var(--border-color)';
-    card.style.background = 'var(--bg-primary)';
-  } else if (data.is_ai) {
-    icon.textContent = '🤖';
-    title.textContent = 'AI Generated';
-    sub.textContent = data.reason;
-    badge.innerHTML = `<span class="badge danger" style="font-size: 1.1rem; padding: 0.5rem 1rem;">🤖 ${data.confidence}% AI Generated</span>`;
-    card.style.borderColor = 'rgba(244,63,94,0.4)';
-    card.style.background = 'rgba(244,63,94,0.1)';
-  } else {
-    icon.textContent = '👤';
-    title.textContent = 'Likely Human';
-    sub.textContent = data.reason;
-    badge.innerHTML = `<span class="badge safe" style="font-size: 1.1rem; padding: 0.5rem 1rem;">👤 ${data.confidence}% Likely Human</span>`;
-    card.style.borderColor = 'rgba(16,185,129,0.4)';
-    card.style.background = 'rgba(16,185,129,0.1)';
-  }
-
-  section.classList.add('visible');
-  showSuccess('Single file AI analysis complete.');
-}
-
-async function runAiBatchScan() {
-  if (!selectedAiZipFile) return;
-
-  hideError();
-
-  const btn = document.getElementById('scan-ai-btn');
-  btn.disabled = true;
-  btn.classList.add('loading');
-  btn.querySelector('.btn-icon').textContent = '⏳';
-  btn.querySelector('.btn-label').textContent = 'PROCESSING...';
-
-  const formData = new FormData();
-  formData.append('file', selectedAiZipFile);
-
-  const lang = document.getElementById('lang-select').value;
-  const apiKey = document.getElementById('api-key').value.trim();
-
-  formData.append('language', lang);
-  if (apiKey) formData.append('api_key', apiKey);
-
-  try {
-    const res = await fetch(`${API}/detect_ai_batch`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: res.statusText }));
-      throw new Error(err.detail || `HTTP ${res.status}`);
+    if (files) {
+      const code1 = files[result.file1];
+      const code2 = files[result.file2];
+      if (code1) {
+        html += `<div class="drawer-section">
+                    <div class="drawer-section-title">${esc(result.file1)}</div>
+                    <pre style="background:var(--bg-code);padding:12px;border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:0.75rem;overflow-x:auto;max-height:200px;border:1px solid var(--border);color:var(--text-mid);line-height:1.6;">${esc(code1.slice(0, 1500))}</pre>
+                </div>`;
+      }
+      if (code2) {
+        html += `<div class="drawer-section">
+                    <div class="drawer-section-title">${esc(result.file2)}</div>
+                    <pre style="background:var(--bg-code);padding:12px;border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:0.75rem;overflow-x:auto;max-height:200px;border:1px solid var(--border);color:var(--text-mid);line-height:1.6;">${esc(code2.slice(0, 1500))}</pre>
+                </div>`;
+      }
     }
 
-    const data = await res.json();
-    showAiBatchResults(data);
-
-  } catch (e) {
-    if (e instanceof TypeError && e.message.includes('fetch')) {
-      showError('Cannot reach the Argus API. Make sure the server is running:\\n  uvicorn api.server:app --reload --port 8000');
-    } else {
-      showError(e.message);
-    }
-  } finally {
-    btn.disabled = false;
-    btn.classList.remove('loading');
-    btn.querySelector('.btn-icon').textContent = '⚡';
-    btn.querySelector('.btn-label').textContent = 'SCAN AI BATCH';
-  }
-}
-
-function showAiBatchResults(data) {
-  const section = document.getElementById('results-section');
-  document.getElementById('dual-results-grid').style.display = 'none';
-  document.getElementById('batch-results-grid').style.display = 'none';
-  document.getElementById('ai-results-grid').style.display = 'block';
-
-  const numFiles = data.results.length;
-  const aiCount = data.results.filter(r => r.is_ai).length;
-
-  const subtitle = document.getElementById('ai-batch-subtitle');
-  if (aiCount > 0) {
-    subtitle.innerHTML = `🚨 Found <strong>${aiCount} AI-generated</strong> files out of ${numFiles} scanned.`;
-  } else {
-    subtitle.innerHTML = `✅ No AI-generation detected across ${numFiles} files. (Highly likely human)`;
+    drawerBody.innerHTML = html;
+    drawer.classList.add('open');
+    drawerOverlay.classList.add('open');
   }
 
-  const tbody = document.getElementById('ai-table-body');
-  tbody.innerHTML = '';
-
-  if (numFiles === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--muted);">No matching files found to analyse.</td></tr>`;
+  function closeDrawer() {
+    drawer.classList.remove('open');
+    drawerOverlay.classList.remove('open');
   }
 
-  data.results.forEach(res => {
-    let colourClass = res.is_ai ? 'danger' : 'safe';
-    let icon = res.is_ai ? '🤖' : '👤';
+  drawerClose.addEventListener('click', closeDrawer);
+  drawerOverlay.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
 
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-          <td><span class="badge ${colourClass}">${icon} ${res.confidence}%</span></td>
-          <td class="file-col">${res.file}</td>
-          <td class="verdict-col ${colourClass}-text">${res.is_ai ? 'AI Generated' : 'Likely Human'}</td>
-          <td style="color: var(--muted); font-size: 0.85rem;">${res.reason}</td>
-        `;
-    tbody.appendChild(tr);
-  });
-
-  section.classList.add('visible');
-
-  if (numFiles > 0) {
-    if (aiCount > 0) showSuccess(`Scanned ${numFiles} files. Found ${aiCount} AI generations.`);
-    else showSuccess(`Successfully scanned ${numFiles} files. 0 AI generations detected.`);
+  // ── Helpers ──
+  function esc(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
   }
-}
 
-// ── Keyboard shortcut ─────────────────────────────────────────────────
-document.addEventListener('keydown', e => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-    if (currentMode === 'dual') runScan();
-    else if (currentMode === 'zip' && selectedZipFile) runZipScan();
-    else if (currentMode === 'ai' && selectedAiZipFile) runAiBatchScan();
-    else if (currentMode === 'ai-single') runAiSingleScan();
-  }
-});
+  // ── Spinner keyframe ──
+  const style = document.createElement('style');
+  style.textContent = `@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`;
+  document.head.appendChild(style);
 
-// ── API health check on load ──────────────────────────────────────────
-async function checkApi() {
-  const statusEl = document.getElementById('api-status');
-  try {
-    const res = await fetch(`${API}/health`, { signal: AbortSignal.timeout(3000) });
-    if (res.ok) {
-      statusEl.textContent = 'API Online';
-      statusEl.parentElement.querySelector('.badge-dot').style.background = '#10b981';
-    } else { throw new Error(); }
-  } catch {
-    statusEl.textContent = 'API Offline';
-    const dot = statusEl.parentElement.querySelector('.badge-dot');
-    dot.style.background = '#f43f5e';
-    dot.style.boxShadow = '0 0 8px #f43f5e';
-    dot.style.animation = 'none';
-    dot.style.opacity = '1';
-  }
-}
-
-checkApi();
+})();

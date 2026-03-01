@@ -23,7 +23,10 @@ import httpx
 from groq import Groq
 
 
-from api.ast_engine import compare
+try:
+    from api.ast_engine import compare
+except ImportError:
+    from ast_engine import compare
 
 # ── App setup ────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -113,6 +116,26 @@ class BatchAiResponse(BaseModel):
 @app.get("/health", tags=["Meta"])
 def health_check():
     """Simple liveness probe."""
+
+
+class ValidateKeyRequest(BaseModel):
+    api_key: str = Field(..., description="Groq API key to validate.")
+
+
+@app.post("/validate_key", tags=["Meta"])
+def validate_key(payload: ValidateKeyRequest):
+    """Validate a Groq API key by making a minimal chat completion call."""
+    try:
+        client = Groq(api_key=payload.api_key)
+        client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": "hi"}],
+            max_tokens=1,
+        )
+        return {"valid": True, "message": "API key is valid."}
+    except Exception as e:
+        err_msg = str(e)
+        return {"valid": False, "message": err_msg}
     return {"status": "ok", "service": "argus"}
 
 
@@ -751,15 +774,12 @@ async def get_random_code(language: str = "python"):
         raise HTTPException(status_code=500, detail=f"Failed to fetch random code: {e}")
 
 
-# ── Serve Frontend ─────────────────────────────────────────────────────────────
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# ── Serve Frontend (local dev only, skipped on Vercel) ─────────────────────────
+if not os.environ.get("VERCEL"):
+    ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    app.mount("/static", StaticFiles(directory=ROOT_DIR), name="static")
 
-
-# Mount static files (like style.css)
-app.mount("/static", StaticFiles(directory=ROOT_DIR), name="static")
-
-
-@app.get("/")
-def serve_index():
-    """Serve the frontend HTML at the root URL."""
-    return FileResponse(os.path.join(ROOT_DIR, "index.html"))
+    @app.get("/")
+    def serve_index():
+        """Serve the frontend HTML at the root URL."""
+        return FileResponse(os.path.join(ROOT_DIR, "index.html"))
