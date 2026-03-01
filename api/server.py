@@ -48,8 +48,11 @@ MIN_LINES = 10
 
 
 def validate_min_lines(code: str, label: str = "Code") -> None:
-    """Raise HTTP 400 if the code has fewer than MIN_LINES non-empty lines."""
-    line_count = len([l for l in code.strip().splitlines() if l.strip()])
+    """Raise HTTP 400 if the code has fewer than MIN_LINES non-empty lines
+    or if excessive line repetition is detected (padding abuse)."""
+    lines = [l.strip() for l in code.strip().splitlines() if l.strip()]
+    line_count = len(lines)
+
     if line_count < MIN_LINES:
         raise HTTPException(
             status_code=400,
@@ -57,6 +60,34 @@ def validate_min_lines(code: str, label: str = "Code") -> None:
                 f"{label} has only {line_count} non-empty lines. "
                 f"Code must be at least {MIN_LINES} lines long "
                 f"for reliable plagiarism or AI detection."
+            ),
+        )
+
+    # Detect line-padding abuse (e.g. print() repeated 11 times)
+    from collections import Counter
+    counts = Counter(lines)
+    most_common_line, most_common_count = counts.most_common(1)[0]
+    unique_count = len(counts)
+    repetition_ratio = most_common_count / line_count
+
+    if repetition_ratio > 0.75 and line_count >= MIN_LINES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"{label} contains excessive repetition — the line "
+                f"'{most_common_line[:50]}' appears {most_common_count} "
+                f"out of {line_count} times ({repetition_ratio:.0%}). "
+                f"Please submit genuine code for analysis."
+            ),
+        )
+
+    if unique_count < MIN_LINES * 0.4:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"{label} has only {unique_count} unique lines out of "
+                f"{line_count} total. Code appears to be padded with "
+                f"repeated lines. Please submit genuine code."
             ),
         )
 

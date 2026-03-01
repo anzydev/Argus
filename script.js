@@ -13,11 +13,30 @@
 (function () {
   'use strict';
 
-  const API_BASE = ''; // Relative paths work on both localhost and Vercel
+  const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:8000' : '';
   const MIN_LINES = 10;
 
   function countLines(code) {
     return code.trim().split('\n').filter(l => l.trim().length > 0).length;
+  }
+
+  function checkRepetition(code, label) {
+    const lines = code.trim().split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length < MIN_LINES) return null; // handled by countLines check
+    const freq = {};
+    lines.forEach(l => { freq[l] = (freq[l] || 0) + 1; });
+    const entries = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+    const [topLine, topCount] = entries[0];
+    const ratio = topCount / lines.length;
+    if (ratio > 0.75) {
+      const truncated = topLine.length > 50 ? topLine.slice(0, 50) + '…' : topLine;
+      return `${label} contains excessive repetition — "${truncated}" appears ${topCount} out of ${lines.length} times (${Math.round(ratio * 100)}%). Please submit genuine code.`;
+    }
+    const uniqueCount = entries.length;
+    if (uniqueCount < MIN_LINES * 0.4) {
+      return `${label} has only ${uniqueCount} unique lines out of ${lines.length} total. Code appears to be padded with repeated lines.`;
+    }
+    return null;
   }
 
   // ── Gate Screen Logic ──
@@ -31,6 +50,54 @@
     const gateToggle = document.getElementById('gate-toggle-vis');
     const gateEye = document.getElementById('gate-eye');
     const particlesContainer = document.getElementById('gate-particles');
+
+    // Check for saved API key — validate it before auto-entering
+    const savedKey = localStorage.getItem('argus_api_key');
+    if (savedKey && savedKey.startsWith('gsk_') && savedKey.length >= 20) {
+      // Show a loading state on the gate while we validate
+      gateBtn.classList.add('loading');
+      gateBtn.disabled = true;
+      gateInput.value = savedKey;
+      gateInput.disabled = true;
+
+      (async () => {
+        try {
+          const resp = await fetch(`${API_BASE}/validate_key`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: savedKey }),
+          });
+          const data = await resp.json();
+
+          if (data.valid) {
+            // Key still valid — auto-enter
+            validatedApiKey = savedKey;
+            const mainKeyInput = document.getElementById('api-key');
+            if (mainKeyInput) mainKeyInput.value = savedKey;
+            overlay.classList.add('success', 'unlocking');
+            setTimeout(() => overlay.classList.add('hidden'), 300);
+            return;
+          }
+        } catch (_) {
+          // Server unreachable — still allow entry with saved key (offline mode)
+          validatedApiKey = savedKey;
+          const mainKeyInput = document.getElementById('api-key');
+          if (mainKeyInput) mainKeyInput.value = savedKey;
+          overlay.classList.add('success', 'unlocking');
+          setTimeout(() => overlay.classList.add('hidden'), 300);
+          return;
+        }
+
+        // Validation failed — key is expired/revoked, clear it
+        localStorage.removeItem('argus_api_key');
+        gateInput.value = '';
+        gateInput.disabled = false;
+        gateBtn.classList.remove('loading');
+        gateBtn.disabled = false;
+        gateError.textContent = 'Saved API key is no longer valid. Please enter a new one.';
+        gateError.classList.add('visible');
+      })();
+    }
 
     // Create floating particles
     for (let i = 0; i < 20; i++) {
@@ -77,8 +144,7 @@
       gateBtn.disabled = true;
       clearGateError();
 
-      // Try server-side validation if backend is running; otherwise accept client-side
-      let serverReachable = false;
+      // Server-side validation is required — key must be confirmed by Groq
       try {
         const resp = await fetch(`${API_BASE}/validate_key`, {
           method: 'POST',
@@ -86,7 +152,6 @@
           body: JSON.stringify({ api_key: key }),
         });
         const data = await resp.json();
-        serverReachable = true;
 
         if (!data.valid) {
           let msg = data.message || 'Invalid API key.';
@@ -100,12 +165,16 @@
           return;
         }
       } catch (err) {
-        // Backend not reachable — accept key on client-side format alone
-        serverReachable = false;
+        // Backend not reachable — cannot validate
+        showGateError('Cannot reach the Argus API server. Please make sure it is running.');
+        gateBtn.classList.remove('loading');
+        gateBtn.disabled = false;
+        return;
       }
 
-      // Key accepted — store and reveal app
+      // Key validated by server — store and reveal app
       validatedApiKey = key;
+      localStorage.setItem('argus_api_key', key);
       overlay.classList.add('success');
       gateBtn.querySelector('.gate-btn-text').textContent = '✓ Key Saved';
 
@@ -349,6 +418,11 @@
       return;
     }
 
+    const repA = checkRepetition(c1, 'File A');
+    if (repA) { showError(repA); return; }
+    const repB = checkRepetition(c2, 'File B');
+    if (repB) { showError(repB); return; }
+
     setBtnLoading(scanBtn, true);
     resetGauge();
     dualResults.style.display = 'none';
@@ -521,6 +595,8 @@
       showError(`Code has only ${lineCount} non-empty lines. It must be at least ${MIN_LINES} lines long for reliable AI detection.`);
       return;
     }
+    const repErr = checkRepetition(code, 'Code');
+    if (repErr) { showError(repErr); return; }
     setBtnLoading(scanAiSingleBtn, true);
 
     try {
@@ -704,5 +780,15 @@
   const style = document.createElement('style');
   style.textContent = `@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`;
   document.head.appendChild(style);
+
+  // ── Forget API Key ──
+  const forgetBtn = document.getElementById('forget-key-btn');
+  if (forgetBtn) {
+    forgetBtn.addEventListener('click', () => {
+      localStorage.removeItem('argus_api_key');
+      validatedApiKey = '';
+      window.location.reload();
+    });
+  }
 
 })();

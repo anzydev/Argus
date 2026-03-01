@@ -1,0 +1,10 @@
+{
+    "python.defaultInterpreterPath": "./.venv/bin/python",
+    "python.venvPath": ".",
+    "python.venv": ".venv",
+    "python.analysis.extraPaths": [
+        "./api",
+        "./src"
+    ],
+    "python.analysis.typeCheckingMode": "basic"
+}
