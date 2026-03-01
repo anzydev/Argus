@@ -66,11 +66,14 @@
       const key = gateInput.value.trim();
       if (!key) { showGateError('Please enter your Groq API key.'); return; }
       if (!key.startsWith('gsk_')) { showGateError('Invalid format — Groq keys start with "gsk_".'); return; }
+      if (key.length < 20) { showGateError('Key is too short. Please check your key.'); return; }
 
       gateBtn.classList.add('loading');
       gateBtn.disabled = true;
       clearGateError();
 
+      // Try server-side validation if backend is running; otherwise accept client-side
+      let serverReachable = false;
       try {
         const resp = await fetch(`${API_BASE}/validate_key`, {
           method: 'POST',
@@ -78,34 +81,39 @@
           body: JSON.stringify({ api_key: key }),
         });
         const data = await resp.json();
+        serverReachable = true;
 
-        if (data.valid) {
-          validatedApiKey = key;
-          overlay.classList.add('success');
-          gateBtn.querySelector('.gate-btn-text').textContent = '✓ Verified';
-
-          const mainKeyInput = document.getElementById('api-key');
-          if (mainKeyInput) mainKeyInput.value = key;
-
-          setTimeout(() => {
-            overlay.classList.add('unlocking');
-            setTimeout(() => overlay.classList.add('hidden'), 700);
-          }, 600);
-        } else {
-          // Extract friendly message from Groq error if possible
+        if (!data.valid) {
           let msg = data.message || 'Invalid API key.';
           if (msg.includes("'message':")) {
             const match = msg.match(/'message':\s*'([^']+)'/);
             if (match) msg = match[1];
           }
           showGateError(msg);
+          gateBtn.classList.remove('loading');
+          gateBtn.disabled = false;
+          return;
         }
       } catch (err) {
-        showGateError('Cannot reach Argus server. Is it running on port 8000?');
-      } finally {
-        gateBtn.classList.remove('loading');
-        gateBtn.disabled = false;
+        // Backend not reachable — accept key on client-side format alone
+        serverReachable = false;
       }
+
+      // Key accepted — store and reveal app
+      validatedApiKey = key;
+      overlay.classList.add('success');
+      gateBtn.querySelector('.gate-btn-text').textContent = '✓ Key Saved';
+
+      const mainKeyInput = document.getElementById('api-key');
+      if (mainKeyInput) mainKeyInput.value = key;
+
+      setTimeout(() => {
+        overlay.classList.add('unlocking');
+        setTimeout(() => overlay.classList.add('hidden'), 700);
+      }, 600);
+
+      gateBtn.classList.remove('loading');
+      gateBtn.disabled = false;
     }
 
     gateBtn.addEventListener('click', validateAndEnter);
