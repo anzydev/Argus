@@ -98,6 +98,26 @@ class BatchAiResponse(BaseModel):
 @app.get("/health", tags=["Meta"])
 def health_check():
     """Simple liveness probe."""
+
+
+class ValidateKeyRequest(BaseModel):
+    api_key: str = Field(..., description="Groq API key to validate.")
+
+
+@app.post("/validate_key", tags=["Meta"])
+def validate_key(payload: ValidateKeyRequest):
+    """Validate a Groq API key by making a minimal chat completion call."""
+    try:
+        client = Groq(api_key=payload.api_key)
+        client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": "hi"}],
+            max_tokens=1,
+        )
+        return {"valid": True, "message": "API key is valid."}
+    except Exception as e:
+        err_msg = str(e)
+        return {"valid": False, "message": err_msg}
     return {"status": "ok", "service": "argus"}
 
 

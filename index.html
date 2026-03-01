@@ -4,284 +4,317 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Argus — Code Plagiarism Detector</title>
+  <title>Argus — Structural Code Forensics Engine</title>
   <meta name="description"
-    content="AST-based structural Python code plagiarism detector using N-gram Jaccard similarity." />
+    content="Detect logical similarity between code submissions using AST analysis. Explainable, deterministic, locally-run." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500;6..72,600&family=JetBrains+Mono:wght@400;500&display=swap"
     rel="stylesheet" />
-
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="/static/style.css" />
 </head>
 
 <body>
-  <div class="blob blob-1"></div>
-  <div class="blob blob-2"></div>
 
-  <div class="container">
-
-    <!-- ── Header ── -->
-    <header>
-      <div class="logo">
-        <div class="logo-eye">👁️</div>
-        <div class="logo-text">
-          <h1>Argus</h1>
-          <p>AST-Based Plagiarism Detector</p>
-        </div>
-      </div>
-      <div class="header-badge">
-        <div class="badge-dot"></div>
-        <span id="api-status">Connecting to API…</span>
-      </div>
-    </header>
-
-    <!-- ── Controls bar ── -->
-    <div class="controls-bar">
-      <div style="display:flex; gap:16px;">
-        <div class="mode-tabs">
-          <button class="mode-tab active" onclick="switchMode('dual')">Dual Files</button>
-          <button class="mode-tab" onclick="switchMode('zip')">ZIP Batch</button>
-          <button class="mode-tab" onclick="switchMode('ai-single')">AI Single</button>
-          <button class="mode-tab" onclick="switchMode('ai')">AI Batch</button>
-        </div>
-        <select id="lang-select" class="lang-select">
-          <option value="python" selected>Python</option>
-          <option value="java">Java</option>
-          <option value="cpp">C / C++</option>
-          <option value="javascript">JavaScript</option>
-          <option value="html">HTML</option>
-          <option value="css">CSS</option>
-          <option value="rust">Rust</option>
-        </select>
-      </div>
-      <div class="control-group">
-        <label for="ngram-size">N-gram Size</label>
-        <input type="range" id="ngram-size" min="1" max="10" value="3" />
-        <span id="ngram-display">3</span>
-      </div>
-      <div class="control-group">
-        <label for="api-key">Groq Key</label>
-        <input type="password" id="api-key" placeholder="AI Pre-check (Optional)"
-          style="width:180px; background: transparent; border: none; color: var(--text); outline: none; font-size: 0.82rem; font-family: var(--font-mono);" />
-      </div>
-      <div class="threshold-info">
-        Plagiarism threshold: <span>≥ 70%</span>
-      </div>
-    </div>
-
-    <!-- ── Main editors + action ── -->
-    <div id="dual-mode-section" class="main-grid">
-
-      <!-- Left editor -->
-      <div class="editor-panel">
-        <div class="editor-header">
-          <div class="editor-label">
-            <span class="dot dot-a"></span>
-            <span id="label-a">File A</span>
-          </div>
-          <div style="display:flex; align-items:center; gap:10px;">
-            <span class="char-count" id="count-a">0 chars</span>
-            <button class="editor-load-btn" onclick="loadSample('a', this)">Load Sample</button>
-          </div>
-        </div>
-        <textarea id="code-a" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
-          placeholder="# Paste your first Python file here…&#10;&#10;def two_sum(numbers, target):&#10;    seen = {}&#10;    for i, v in enumerate(numbers):&#10;        ..."></textarea>
-      </div>
-
-      <!-- Centre column -->
-      <div class="centre-col">
-        <!-- Gauge SVG -->
-        <div class="gauge-wrap">
-          <svg id="gauge-svg" width="130" height="130" viewBox="0 0 130 130">
-            <circle id="gauge-track" cx="65" cy="65" r="52" stroke-dasharray="326.73" stroke-dashoffset="0" />
-            <circle id="gauge-fill" cx="65" cy="65" r="52" stroke-dasharray="326.73" stroke-dashoffset="326.73"
-              transform="rotate(-90 65 65)" />
-            <text x="65" y="60" class="gauge-label" id="gauge-pct">—</text>
-            <text x="65" y="76" class="gauge-label" id="gauge-sub">SIMILARITY</text>
-          </svg>
-        </div>
-
-        <div class="vs-badge">VS</div>
-
-        <!-- Scan button -->
-        <button id="scan-btn" onclick="runScan()">
-          <span class="btn-icon">⚡</span>
-          <span class="btn-label">SCAN</span>
+  <!-- ── API Key Gate Screen ── -->
+  <div class="gate-overlay" id="gate-overlay">
+    <div class="gate-content">
+      <div class="gate-logo">Argus</div>
+      <div class="gate-tagline">Structural Code Forensics Engine</div>
+      <div class="gate-divider"></div>
+      <p class="gate-desc">Enter your Groq API key to unlock the analysis workspace.</p>
+      <div class="gate-input-wrap">
+        <div class="gate-input-icon">🔑</div>
+        <input type="password" id="gate-api-key" class="gate-input" placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxx"
+          autocomplete="off" spellcheck="false" />
+        <button class="gate-toggle-vis" id="gate-toggle-vis" title="Show/hide key">
+          <span id="gate-eye">👁</span>
         </button>
       </div>
+      <div class="gate-error" id="gate-error"></div>
+      <button class="gate-btn" id="gate-btn">
+        <span class="gate-btn-text">Validate &amp; Enter</span>
+        <span class="gate-btn-spinner" id="gate-spinner"></span>
+      </button>
+      <p class="gate-hint">Your key is stored locally in this session only. <a href="https://console.groq.com/keys"
+          target="_blank" rel="noopener">Get a free key →</a></p>
+    </div>
+    <div class="gate-decor">
+      <div class="gate-bar"></div>
+      <div class="gate-bar"></div>
+      <div class="gate-bar"></div>
+    </div>
+    <div class="gate-particles" id="gate-particles"></div>
+  </div>
 
-      <!-- Right editor -->
-      <div class="editor-panel">
-        <div class="editor-header">
-          <div class="editor-label">
-            <span class="dot dot-b"></span>
-            <span id="label-b">File B</span>
-          </div>
-          <div style="display:flex; align-items:center; gap:10px;">
-            <span class="char-count" id="count-b">0 chars</span>
-            <button class="editor-load-btn" onclick="loadSample('b', this)">Load Sample</button>
-          </div>
-        </div>
-        <textarea id="code-b" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
-          placeholder="# Paste your second Python file here…&#10;&#10;def xQ7(z, k):&#10;    q = {}&#10;    p = 0&#10;    while p &lt; len(z):&#10;        ..."></textarea>
+  <!-- ── Navigation ── -->
+  <nav class="nav" id="nav">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo">Argus</a>
+      <div class="nav-links">
+        <a href="#hero" class="nav-link">Home</a>
+        <a href="#analyze-section" class="nav-link">Analyze</a>
+        <a href="#about" class="nav-link">About</a>
       </div>
     </div>
+  </nav>
 
-    <!-- ── AI Single Editor Section ── -->
-    <div id="ai-single-mode-section" class="main-grid"
-      style="display: none; grid-template-columns: 1fr; max-width: 900px; margin: 0 auto;">
-      <div class="editor-panel">
-        <div class="editor-header">
-          <div class="editor-label">
-            <span class="dot dot-a"></span>
-            <span>Single File</span>
+  <!-- ── Hero Section ── -->
+  <section class="hero" id="hero">
+    <div class="hero-inner">
+      <div class="hero-text">
+        <h1 class="hero-heading">Structural Code<br />Forensics Engine</h1>
+        <p class="hero-sub">Detect logical similarity between code submissions using AST analysis.<br />Explainable,
+          deterministic, locally&#8209;run.</p>
+        <a href="#analyze-section" class="btn-primary" id="hero-cta">Start Analysis <span class="btn-arrow">→</span></a>
+      </div>
+      <div class="hero-visual">
+        <div class="visual-card visual-card-1">
+          <div class="visual-card-header">
+            <span class="dot-red"></span><span class="dot-yellow"></span><span class="dot-green"></span>
           </div>
-          <div style="display:flex; align-items:center; gap:10px;">
-            <span class="char-count" id="count-ai">0 chars</span>
+          <div class="visual-code">
+            <span class="vc-kw">def</span> <span class="vc-fn">analyze</span>(files):
+            <br />&nbsp;&nbsp;tree = <span class="vc-fn">parse_ast</span>(files)
+            <br />&nbsp;&nbsp;<span class="vc-kw">for</span> node <span class="vc-kw">in</span> tree:
+            <br />&nbsp;&nbsp;&nbsp;&nbsp;<span class="vc-fn">fingerprint</span>(node)
           </div>
         </div>
-        <textarea id="code-ai" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
-          placeholder="# Paste your Python file here…&#10;&#10;def ai_generated_function():&#10;    ..."></textarea>
+        <div class="visual-card visual-card-2">
+          <div class="visual-badge">87.3% Match</div>
+          <div class="visual-bars">
+            <div class="v-bar" style="width:87%"></div>
+            <div class="v-bar" style="width:62%"></div>
+            <div class="v-bar" style="width:91%"></div>
+            <div class="v-bar" style="width:44%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-        <div
-          style="padding: 1rem; display: flex; justify-content: flex-end; border-top: 1px solid var(--border-color); background: var(--bg-primary);">
-          <button id="scan-ai-single-btn" class="scan-zip-btn" style="width: auto; padding: 0 2rem;"
-            onclick="runAiSingleScan()">
+  <!-- ── Analyze Section ── -->
+  <section class="analyze-section" id="analyze-section">
+    <div class="section-inner">
+
+      <!-- Controls Bar -->
+      <div class="controls-bar">
+        <div class="controls-left">
+          <div class="mode-tabs" id="modeTabs">
+            <button class="mode-tab active" data-mode="dual">Dual Files</button>
+            <button class="mode-tab" data-mode="zip">ZIP Batch</button>
+            <button class="mode-tab" data-mode="ai-single">AI Single</button>
+            <button class="mode-tab" data-mode="ai">AI Batch</button>
+          </div>
+          <select id="lang-select" class="lang-select">
+            <option value="python" selected>Python</option>
+            <option value="java">Java</option>
+            <option value="cpp">C / C++</option>
+            <option value="javascript">JavaScript</option>
+            <option value="html">HTML</option>
+            <option value="css">CSS</option>
+            <option value="rust">Rust</option>
+          </select>
+        </div>
+        <div class="controls-right">
+          <div class="control-group">
+            <label for="ngram-size">N-gram</label>
+            <input type="range" id="ngram-size" min="1" max="10" value="3" />
+            <span id="ngram-display" class="ngram-val">3</span>
+          </div>
+          <div class="control-group">
+            <label for="api-key">Groq Key</label>
+            <input type="password" id="api-key" placeholder="Optional" class="api-key-input" />
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Dual Mode ── -->
+      <div id="dual-mode-section" class="editor-grid">
+        <!-- File A -->
+        <div class="editor-card">
+          <div class="editor-head">
+            <div class="editor-label"><span class="dot-indicator dot-a"></span><span id="label-a">File A</span></div>
+            <div class="editor-actions">
+              <span class="char-count" id="count-a">0 chars</span>
+              <button class="btn-ghost" id="load-sample-a">Load Sample</button>
+            </div>
+          </div>
+          <textarea id="code-a" spellcheck="false" autocomplete="off"
+            placeholder="# Paste your first file here…"></textarea>
+        </div>
+
+        <!-- Centre -->
+        <div class="centre-col">
+          <div class="gauge-wrap">
+            <svg id="gauge-svg" width="120" height="120" viewBox="0 0 120 120">
+              <circle class="gauge-track" cx="60" cy="60" r="48" />
+              <circle class="gauge-fill" id="gauge-fill" cx="60" cy="60" r="48" stroke-dasharray="301.59"
+                stroke-dashoffset="301.59" transform="rotate(-90 60 60)" />
+              <text x="60" y="56" class="gauge-pct" id="gauge-pct">—</text>
+              <text x="60" y="72" class="gauge-sub">SIMILARITY</text>
+            </svg>
+          </div>
+          <div class="vs-badge">VS</div>
+          <button class="btn-scan" id="scan-btn">
             <span class="btn-icon">⚡</span>
-            <span class="btn-label">SCAN SNIPPET</span>
+            <span>SCAN</span>
+          </button>
+        </div>
+
+        <!-- File B -->
+        <div class="editor-card">
+          <div class="editor-head">
+            <div class="editor-label"><span class="dot-indicator dot-b"></span><span id="label-b">File B</span></div>
+            <div class="editor-actions">
+              <span class="char-count" id="count-b">0 chars</span>
+              <button class="btn-ghost" id="load-sample-b">Load Sample</button>
+            </div>
+          </div>
+          <textarea id="code-b" spellcheck="false" autocomplete="off"
+            placeholder="# Paste your second file here…"></textarea>
+        </div>
+      </div>
+
+      <!-- ── AI Single Mode ── -->
+      <div id="ai-single-mode-section" class="single-editor-wrap" style="display:none;">
+        <div class="editor-card editor-card-wide">
+          <div class="editor-head">
+            <div class="editor-label"><span class="dot-indicator dot-a"></span><span>Single File</span></div>
+            <span class="char-count" id="count-ai">0 chars</span>
+          </div>
+          <textarea id="code-ai" spellcheck="false" autocomplete="off"
+            placeholder="# Paste code to check for AI authorship…"></textarea>
+          <div class="editor-footer">
+            <button class="btn-scan" id="scan-ai-single-btn">
+              <span class="btn-icon">⚡</span>
+              <span>SCAN SNIPPET</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ZIP Batch Mode ── -->
+      <div id="zip-mode-section" style="display:none;">
+        <div class="upload-card" id="drop-zone-zip">
+          <input type="file" id="zip-file" accept=".zip" style="display:none;" />
+          <div class="upload-icon">📦</div>
+          <h2 class="upload-title">Upload ZIP for Batch Analysis</h2>
+          <p class="upload-sub">Drop a .zip containing multiple scripts, or <span class="upload-browse"
+              id="browse-zip">browse your files</span>.</p>
+          <p class="upload-req">Requires at least 2 scripts of the selected language.</p>
+          <button class="btn-scan btn-scan-wide" id="scan-zip-btn" disabled>
+            <span class="btn-icon">⚡</span>
+            <span>SCAN ZIP BATCH</span>
           </button>
         </div>
       </div>
-    </div>
 
-    <!-- ── ZIP Batch Upload Section ── -->
-    <div id="zip-mode-section" style="display: none;">
-      <div class="zip-upload-card" id="drop-zone-zip">
-        <input type="file" id="zip-file" accept=".zip" style="display: none;" />
-        <div class="zip-icon">📦</div>
-        <h2>Upload ZIP for Batch Analysis</h2>
-        <p>Drop a .zip file containing multiple scripts, or <span class="browse-link"
-            onclick="document.getElementById('zip-file').click()">browse your files</span>.</p>
-        <p class="zip-req">Requires at least 2 scripts of the selected language inside.</p>
-        <button id="scan-zip-btn" class="scan-zip-btn" disabled onclick="runZipScan()">
-          <span class="btn-icon">⚡</span>
-          <span class="btn-label">SCAN ZIP BATCH</span>
-        </button>
+      <!-- ── AI Batch Mode ── -->
+      <div id="ai-mode-section" style="display:none;">
+        <div class="upload-card" id="drop-zone-ai">
+          <input type="file" id="ai-zip-file" accept=".zip" style="display:none;" />
+          <div class="upload-icon">🤖</div>
+          <h2 class="upload-title">Upload ZIP for AI Detection</h2>
+          <p class="upload-sub">Drop a .zip containing scripts to scan for LLM generation, or <span
+              class="upload-browse" id="browse-ai">browse your files</span>.</p>
+          <button class="btn-scan btn-scan-wide" id="scan-ai-btn" disabled>
+            <span class="btn-icon">⚡</span>
+            <span>SCAN AI BATCH</span>
+          </button>
+        </div>
       </div>
+
     </div>
+  </section>
 
-    <!-- ── AI Batch Upload Section ── -->
-    <div id="ai-mode-section" style="display: none;">
-      <div class="zip-upload-card" id="drop-zone-ai">
-        <input type="file" id="ai-zip-file" accept=".zip" style="display: none;" />
-        <div class="zip-icon">🤖</div>
-        <h2>Upload ZIP for AI Detection</h2>
-        <p>Drop a .zip file containing scripts to scan for LLM generation, or <span class="browse-link"
-            onclick="document.getElementById('ai-zip-file').click()">browse your files</span>.</p>
-        <button id="scan-ai-btn" class="scan-zip-btn" disabled onclick="runAiBatchScan()">
-          <span class="btn-icon">⚡</span>
-          <span class="btn-label">SCAN AI BATCH</span>
-        </button>
-      </div>
-    </div>
+  <!-- ── Toasts ── -->
+  <div class="toast toast-error" id="error-toast"></div>
+  <div class="toast toast-success" id="success-toast"></div>
 
-    <!-- ── Toasts ── -->
-    <div id="error-toast"></div>
-    <div id="success-toast"></div>
+  <!-- ── Results ── -->
+  <section id="results-section" class="results-section" aria-live="polite">
+    <div class="section-inner">
 
-    <!-- ── Results ── -->
-    <section id="results-section" aria-live="polite">
-      <!-- Dual Match Results -->
-      <div id="dual-results-grid" class="results-grid" style="display: none;">
-
-        <!-- Verdict banner -->
-        <div id="verdict-card">
+      <!-- Dual Results -->
+      <div id="dual-results-grid" class="results-grid" style="display:none;">
+        <!-- Verdict -->
+        <div class="verdict-card" id="verdict-card">
           <div class="verdict-icon" id="verdict-icon">🔍</div>
           <div class="verdict-body">
-            <h2 id="verdict-text">Awaiting analysis…</h2>
-            <p id="verdict-sub">Paste two Python files and click SCAN.</p>
+            <h2 class="verdict-text" id="verdict-text">Awaiting analysis…</h2>
+            <p class="verdict-sub" id="verdict-sub">Paste two files and click SCAN.</p>
           </div>
           <div class="verdict-score">
-            <div class="big-pct" id="verdict-pct">—</div>
-            <div class="pct-label">Structural Similarity</div>
+            <div class="verdict-pct" id="verdict-pct">—</div>
+            <div class="verdict-label">Structural Similarity</div>
           </div>
         </div>
 
-        <!-- File A stats -->
+        <!-- Stat Cards -->
         <div class="stat-card">
           <h3>File A — Analysis</h3>
           <div class="stat-row"><span>AST Nodes</span><span class="val" id="s-nodes-a">—</span></div>
-          <div class="stat-row"><span>Unique N-grams</span><span class="val" id="s-ngrams-a">—</span></div>
-          <div class="stat-row" style="margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 10px;">
-            <span>AI Authorship</span><span class="val" id="ai-badge-a" title="Awaiting analysis...">—</span>
+          <div class="stat-row"><span>Unique N‑grams</span><span class="val" id="s-ngrams-a">—</span></div>
+          <div class="stat-row stat-separator"><span>AI Authorship</span><span class="val" id="ai-badge-a">—</span>
           </div>
         </div>
-
-        <!-- File B stats -->
         <div class="stat-card">
           <h3>File B — Analysis</h3>
           <div class="stat-row"><span>AST Nodes</span><span class="val" id="s-nodes-b">—</span></div>
-          <div class="stat-row"><span>Unique N-grams</span><span class="val" id="s-ngrams-b">—</span></div>
-          <div class="stat-row" style="margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 10px;">
-            <span>AI Authorship</span><span class="val" id="ai-badge-b" title="Awaiting analysis...">—</span>
+          <div class="stat-row"><span>Unique N‑grams</span><span class="val" id="s-ngrams-b">—</span></div>
+          <div class="stat-row stat-separator"><span>AI Authorship</span><span class="val" id="ai-badge-b">—</span>
           </div>
         </div>
 
-        <!-- Jaccard breakdown -->
-        <div class="stat-card" style="grid-column: 1 / -1;">
+        <!-- Jaccard Breakdown -->
+        <div class="stat-card stat-card-full">
           <h3>Jaccard Breakdown</h3>
-          <div class="stat-row"><span>Shared N-grams (|A ∩ B|)</span><span class="val" id="s-intersection">—</span>
+          <div class="stat-row"><span>Shared N‑grams (|A ∩ B|)</span><span class="val" id="s-intersection">—</span>
           </div>
-          <div class="stat-row"><span>Combined N-grams (|A ∪ B|)</span><span class="val" id="s-union">—</span></div>
-          <div class="stat-row"><span>N-gram Window Size</span><span class="val" id="s-ngram-size">—</span></div>
+          <div class="stat-row"><span>Combined N‑grams (|A ∪ B|)</span><span class="val" id="s-union">—</span></div>
+          <div class="stat-row"><span>N‑gram Window Size</span><span class="val" id="s-ngram-size">—</span></div>
           <div class="stat-row"><span>Jaccard Score</span><span class="val" id="s-score">—</span></div>
         </div>
-
       </div>
 
-      <!-- Batch Match Results -->
-      <div id="batch-results-grid" class="batch-grid" style="display: none;">
-        <h3>Batch Analysis Results</h3>
-        <p class="batch-subtitle" id="batch-subtitle">Pairwise comparisons across X files</p>
-
-        <div class="batch-table-container">
-          <table class="batch-table">
+      <!-- Batch Results -->
+      <div id="batch-results-grid" class="batch-section" style="display:none;">
+        <h3 class="batch-title">Batch Analysis Results</h3>
+        <p class="batch-subtitle" id="batch-subtitle">Pairwise comparisons across files</p>
+        <div class="table-wrap">
+          <table class="data-table">
             <thead>
               <tr>
                 <th>Similarity</th>
                 <th>File A</th>
                 <th>File B</th>
                 <th>Verdict</th>
-                <th style="text-align: right;">Action</th>
+                <th style="text-align:right;">Action</th>
               </tr>
             </thead>
-            <tbody id="batch-table-body">
-              <!-- Rendered via JS -->
-            </tbody>
+            <tbody id="batch-table-body"></tbody>
           </table>
         </div>
       </div>
 
-      <!-- AI Single Results -->
-      <div id="ai-single-results-grid" style="display: none; max-width: 600px; margin: 0 auto; margin-top: 2rem;">
-        <div id="ai-single-verdict-card" class="stat-card" style="text-align: center; padding: 3rem;">
-          <div id="ai-single-icon" style="font-size: 3rem; margin-bottom: 1rem;">🔍</div>
-          <h2 id="ai-single-title" style="margin-bottom: 0.5rem; color: var(--text);">Awaiting analysis...</h2>
-          <p id="ai-single-sub" style="color: var(--muted); margin-bottom: 1.5rem; line-height: 1.5;">Paste code to
-            scan.</p>
-          <div id="ai-single-badge" style="margin-top: 1rem;"></div>
+      <!-- AI Single Result -->
+      <div id="ai-single-results-grid" class="ai-single-result" style="display:none;">
+        <div class="stat-card ai-verdict-card">
+          <div id="ai-single-icon" class="ai-single-icon">🔍</div>
+          <h2 id="ai-single-title" class="ai-single-title">Awaiting analysis…</h2>
+          <p id="ai-single-sub" class="ai-single-sub">Paste code to scan.</p>
+          <div id="ai-single-badge"></div>
         </div>
       </div>
 
       <!-- AI Batch Results -->
-      <div id="ai-results-grid" class="batch-grid" style="display: none;">
-        <h3>AI Authorship Results</h3>
-        <p class="batch-subtitle" id="ai-batch-subtitle">AI Detection across X files</p>
-
-        <div class="batch-table-container">
-          <table class="batch-table">
+      <div id="ai-results-grid" class="batch-section" style="display:none;">
+        <h3 class="batch-title">AI Authorship Results</h3>
+        <p class="batch-subtitle" id="ai-batch-subtitle">AI Detection across files</p>
+        <div class="table-wrap">
+          <table class="data-table">
             <thead>
               <tr>
                 <th>Confidence</th>
@@ -290,18 +323,60 @@
                 <th>Reasoning</th>
               </tr>
             </thead>
-            <tbody id="ai-table-body">
-              <!-- Rendered via JS -->
-            </tbody>
+            <tbody id="ai-table-body"></tbody>
           </table>
         </div>
       </div>
-    </section>
+    </div>
+  </section>
 
-  </div><!-- /container -->
+  <!-- ── Investigation Drawer ── -->
+  <div class="drawer-overlay" id="drawer-overlay"></div>
+  <aside class="drawer" id="drawer">
+    <div class="drawer-head">
+      <h2 class="drawer-title">Investigation Details</h2>
+      <button class="drawer-close" id="drawer-close">✕</button>
+    </div>
+    <div class="drawer-body" id="drawer-body">
+      <!-- Populated by JS -->
+    </div>
+  </aside>
 
-  <!-- ── Sample scripts ── -->
-  <script src="script.js"></script>
+  <!-- ── About Section ── -->
+  <section class="about-section" id="about">
+    <div class="section-inner about-inner">
+      <h2 class="about-heading">How Argus Works</h2>
+      <div class="about-grid">
+        <div class="about-card">
+          <div class="about-num">01</div>
+          <h3>Parse</h3>
+          <p>Code is parsed into Abstract Syntax Trees using Tree‑sitter, capturing structural meaning beyond surface
+            syntax.</p>
+        </div>
+        <div class="about-card">
+          <div class="about-num">02</div>
+          <h3>Fingerprint</h3>
+          <p>Ordered N‑gram sequences are extracted from AST node types, creating a structural fingerprint immune to
+            renaming.</p>
+        </div>
+        <div class="about-card">
+          <div class="about-num">03</div>
+          <h3>Compare</h3>
+          <p>Jaccard similarity measures structural overlap. AI verification provides additional logical reasoning when
+            available.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Footer ── -->
+  <footer class="footer">
+    <div class="section-inner">
+      <p>Argus — Structural Code Forensics Engine · AST‑based analysis · Locally run</p>
+    </div>
+  </footer>
+
+  <script src="/static/script.js"></script>
 
 </body>
 
