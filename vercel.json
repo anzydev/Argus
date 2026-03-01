@@ -1,52 +1,33 @@
 {
     "name": "argus",
-    "builds": [
+    "rewrites": [
         {
-            "src": "api/server.py",
-            "use": "@vercel/python"
+            "source": "/health",
+            "destination": "/api/server.py"
+        },
+        {
+            "source": "/validate_key",
+            "destination": "/api/server.py"
+        },
+        {
+            "source": "/compare",
+            "destination": "/api/server.py"
+        },
+        {
+            "source": "/compare_zip",
+            "destination": "/api/server.py"
+        },
+        {
+            "source": "/detect_ai_single",
+            "destination": "/api/server.py"
+        },
+        {
+            "source": "/detect_ai_batch",
+            "destination": "/api/server.py"
+        },
+        {
+            "source": "/random_code",
+            "destination": "/api/server.py"
         }
-    ],
-    "routes": [
-        {
-            "src": "/health",
-            "dest": "api/server.py"
-        },
-        {
-            "src": "/validate_key",
-            "dest": "api/server.py"
-        },
-        {
-            "src": "/compare",
-            "dest": "api/server.py"
-        },
-        {
-            "src": "/compare_zip",
-            "dest": "api/server.py"
-        },
-        {
-            "src": "/detect_ai_single",
-            "dest": "api/server.py"
-        },
-        {
-            "src": "/detect_ai_batch",
-            "dest": "api/server.py"
-        },
-        {
-            "src": "/random_code",
-            "dest": "api/server.py"
-        },
-        {
-            "src": "/(.*\\.css)",
-            "dest": "/$1"
-        },
-        {
-            "src": "/(.*\\.js)",
-            "dest": "/$1"
-        },
-        {
-            "src": "/(.*\\.html)",
-            "dest": "/$1"
-        }
-    ],
-    "outputDirectory": "."
+    ]
 }
