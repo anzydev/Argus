@@ -1,5 +1,26 @@
+# Environment variables (API keys, secrets)
+.env
+.env.*
+
+# Node
+node_modules/
+.vercel
+
+# Python
 __pycache__/
 *.pyc
-.env
-.vercel
-node_modules/
+*.pyo
+
+# Virtual environment
+.venv/
+venv/
+
+# Testing
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
