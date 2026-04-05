@@ -4,8 +4,6 @@ Argus is an advanced, AST-based code plagiarism detection system with AI-powered
 
 ### 🔗 Quick Links
 - **Live Deployment:** [argus-two-beta.vercel.app](https://argus-two-beta.vercel.app/)
-- **Presentation:** [View on Google Drive](https://drive.google.com/file/d/1wQcTEgvwrjAM_uXa5QnraPGzZfn_QUck/view?usp=sharing)
-- **Demo Video:** [Watch on Google Drive](https://drive.google.com/file/d/1uOUk0L4J48vBSLJU16fY7M60TG25BZgM/view?usp=sharing)
 
 ---
 
