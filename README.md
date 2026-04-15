@@ -2,7 +2,7 @@
 
 Argus is an advanced, AST-based code plagiarism detection system with AI-powered authorship analysis. It structurally compares code submissions using **Tree-sitter** N-gram Jaccard similarity, verifies flagged pairs with a **Groq LLM**, and can detect if code was written by an AI (ChatGPT, Claude, etc.).
 
-### 🔗 Quick Links
+### 🔗 Link
 - **Live Deployment:** [argus-two-beta.vercel.app](https://argus-two-beta.vercel.app/)
 
 ---
